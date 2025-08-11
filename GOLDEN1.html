@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>2 Object & COM Simulation</title>
+<style>
+  body { font-family: Arial; text-align: center; background: #111; color: #fff; }
+  canvas { background: #222; display: block; margin: 10px auto; border: 1px solid #555; }
+  .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 10px; }
+  .control-box { background: #333; padding: 10px; border-radius: 8px; }
+  label { display: block; font-size: 14px; margin-bottom: 5px; }
+  input[type="range"] { width: 150px; }
+  button { margin: 5px; padding: 8px 15px; font-size: 14px; cursor: pointer; border: none; border-radius: 5px; }
+  button:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<h2>2 Object Motion with Center of Mass</h2>
+<canvas id="simCanvas" width="800" height="300"></canvas>
+
+<div class="controls">
+  <div class="control-box">
+    <h3>M1</h3>
+    <label>Mass: <span id="m1MassVal">5</span></label>
+    <input type="range" id="m1Mass" min="1" max="20" value="5" step="0.5">
+    <label>Velocity: <span id="m1VelVal">2</span></label>
+    <input type="range" id="m1Vel" min="-10" max="10" value="2" step="0.5">
+    <label>Acceleration: <span id="m1AccVal">0</span></label>
+    <input type="range" id="m1Acc" min="-2" max="2" value="0" step="0.1">
+  </div>
+
+  <div class="control-box">
+    <h3>M2</h3>
+    <label>Mass: <span id="m2MassVal">5</span></label>
+    <input type="range" id="m2Mass" min="1" max="20" value="5" step="0.5">
+    <label>Velocity: <span id="m2VelVal">-2</span></label>
+    <input type="range" id="m2Vel" min="-10" max="10" value="-2" step="0.5">
+    <label>Acceleration: <span id="m2AccVal">0</span></label>
+    <input type="range" id="m2Acc" min="-2" max="2" value="0" step="0.1">
+  </div>
+
+  <div class="control-box">
+    <h3>COM</h3>
+    <label>Extra COM Velocity: <span id="comVelVal">0</span></label>
+    <input type="range" id="comVel" min="-5" max="5" value="0" step="0.1">
+  </div>
+</div>
+
+<div>
+  <button id="startBtn">▶ Start</button>
+  <button id="pauseBtn">⏸ Pause</button>
+  <button id="resetBtn">🔄 Reset</button>
+</div>
+
+<script>
+const canvas = document.getElementById("simCanvas");
+const ctx = canvas.getContext("2d");
+
+let m1 = 5, m2 = 5;
+let v1 = 2, v2 = -2;
+let a1 = 0, a2 = 0;
+let comExtraVel = 0;
+
+let x1 = 200, x2 = 600;
+let running = false;
+
+function updateValuesFromSliders(){
+  m1 = parseFloat(document.getElementById("m1Mass").value) || 1;
+  m2 = parseFloat(document.getElementById("m2Mass").value) || 1;
+  v1 = parseFloat(document.getElementById("m1Vel").value) || 0;
+  v2 = parseFloat(document.getElementById("m2Vel").value) || 0;
+  a1 = parseFloat(document.getElementById("m1Acc").value) || 0;
+  a2 = parseFloat(document.getElementById("m2Acc").value) || 0;
+  comExtraVel = parseFloat(document.getElementById("comVel").value) || 0;
+
+  document.getElementById("m1MassVal").innerText = m1;
+  document.getElementById("m2MassVal").innerText = m2;
+  document.getElementById("m1VelVal").innerText = v1;
+  document.getElementById("m2VelVal").innerText = v2;
+  document.getElementById("m1AccVal").innerText = a1;
+  document.getElementById("m2AccVal").innerText = a2;
+  document.getElementById("comVelVal").innerText = comExtraVel;
+}
+
+document.querySelectorAll("input[type='range']").forEach(slider=>{
+  slider.addEventListener("input", updateValuesFromSliders);
+});
+
+function draw(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw base line
+  ctx.strokeStyle = "#888";
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height/2);
+  ctx.lineTo(canvas.width, canvas.height/2);
+  ctx.stroke();
+
+  // Calculate COM position
+  let xCom = (m1*x1 + m2*x2)/(m1+m2);
+
+  // Draw M1
+  ctx.fillStyle = "red";
+  ctx.beginPath();
+  ctx.arc(x1, canvas.height/2, 10, 0, Math.PI*2);
+  ctx.fill();
+
+  // Draw M2
+  ctx.fillStyle = "green";
+  ctx.beginPath();
+  ctx.arc(x2, canvas.height/2, 10, 0, Math.PI*2);
+  ctx.fill();
+
+  // Draw COM
+  ctx.fillStyle = "blue";
+  ctx.beginPath();
+  ctx.arc(xCom, canvas.height/2, 6, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function physicsStep(){
+  v1 += a1*0.1;
+  v2 += a2*0.1;
+  x1 += v1*2 + comExtraVel;
+  x2 += v2*2 + comExtraVel;
+}
+
+function loop(){
+  if(running){
+    physicsStep();
+    draw();
+    requestAnimationFrame(loop);
+  }
+}
+
+document.getElementById("startBtn").onclick = ()=>{
+  running = true;
+  loop();
+};
+document.getElementById("pauseBtn").onclick = ()=> running = false;
+document.getElementById("resetBtn").onclick = ()=>{
+  running = false;
+  x1 = 200; x2 = 600;
+  updateValuesFromSliders();
+  draw();
+};
+
+updateValuesFromSliders();
+draw();
+</script>
+
+</body>
+</html>
