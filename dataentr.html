@@ -1,0 +1,207 @@
+<!doctype html>
+
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phone Data Saver</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans',Helvetica,Arial;margin:0}
+    body{display:flex;align-items:flex-start;justify-content:center;min-height:100vh;background:#f3f4f6;padding:20px}
+    .card{width:100%;max-width:760px;background:#fff;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.08);padding:20px}
+    h1{font-size:1.3rem;margin:0 0 8px}
+    p.lead{margin:0 0 18px;color:#444}
+    form{display:grid;gap:10px}
+    input, textarea, select{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:0.95rem}
+    .row{display:flex;gap:10px}
+    .row > *{flex:1}
+    .btn{padding:10px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-ghost{background:#fff;border:1px solid #e5e7eb}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .entries{margin-top:18px}
+    .entry{padding:10px;border-radius:8px;border:1px solid #eef2ff;margin-bottom:8px;background:#fbfdff}
+    .small{font-size:0.85rem;color:#666}
+    footer.small{margin-top:12px;color:#666}
+    @media (max-width:520px){.row{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Phone Data Saver</h1>
+    <p class="lead">Yah ek simple single-file webpage hai. Data yahan daalo — woh aapke browser mein <strong>localStorage</strong> mein save ho jayega aur aap usse file ke roop mein apne phone par download bhi kar sakte hain.</p><form id="dataForm">
+  <input id="title" placeholder="Title (jaise: Shopping list)" required />
+  <textarea id="content" rows="5" placeholder="Apna data yahan likho..."></textarea>
+  <div class="row">
+    <input id="tag" placeholder="Tag (optional)" />
+    <select id="saveMode">
+      <option value="local">Save mode: Local (browser) — default</option>
+      <option value="download">Save mode: Download file</option>
+    </select>
+  </div>
+
+  <div class="controls">
+    <button type="button" class="btn btn-primary" id="saveBtn">Save</button>
+    <button type="button" class="btn btn-ghost" id="exportAllBtn">Download All (.json)</button>
+    <button type="button" class="btn btn-ghost" id="clearBtn">Clear All</button>
+    <button type="button" class="btn btn-ghost" id="shareBtn">Share Latest (if supported)</button>
+  </div>
+</form>
+
+<div class="entries">
+  <h3>Saved Entries</h3>
+  <div id="list" class="small">Loading...</div>
+</div>
+
+<footer class="small">
+  Tip: Apne phone ke browser (Chrome/Firefox/Safari) mein is file ko open karke "Add to Home screen" kar lo — phir ye offline bhi aasani se khulega. Downloaded files aapke phone ke Downloads folder mein jayenge.
+</footer>
+
+  </div>  <script>
+    // Simple client-side data saver
+    const LS_KEY = 'phone_data_saver_entries_v1';
+    const form = document.getElementById('dataForm');
+    const titleInput = document.getElementById('title');
+    const contentInput = document.getElementById('content');
+    const tagInput = document.getElementById('tag');
+    const saveBtn = document.getElementById('saveBtn');
+    const exportAllBtn = document.getElementById('exportAllBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const list = document.getElementById('list');
+    const saveMode = document.getElementById('saveMode');
+    const shareBtn = document.getElementById('shareBtn');
+
+    function loadEntries(){
+      try{
+        const raw = localStorage.getItem(LS_KEY);
+        return raw ? JSON.parse(raw) : [];
+      }catch(e){
+        console.error(e);
+        return [];
+      }
+    }
+
+    function saveEntries(entries){
+      localStorage.setItem(LS_KEY, JSON.stringify(entries));
+    }
+
+    function render(){
+      const entries = loadEntries();
+      if(entries.length===0){ list.innerHTML = '<i>No saved entries yet.</i>'; return }
+      list.innerHTML = '';
+      entries.slice().reverse().forEach((e, idx)=>{
+        const div = document.createElement('div');
+        div.className = 'entry';
+        div.innerHTML = `<strong>${escapeHtml(e.title||'Untitled')}</strong> <div class="small">${new Date(e.ts).toLocaleString()}</div><p>${escapeHtml(e.content)}</p><div class="small">Tag: ${escapeHtml(e.tag||'-')}</div><div style="margin-top:6px"><button data-i="${entries.length-1-idx}" class="btn btn-ghost smallBtn">Download</button> <button data-i="${entries.length-1-idx}" class="btn btn-ghost smallBtn delBtn">Delete</button></div>`;
+        list.appendChild(div);
+      });
+
+      // attach handlers
+      Array.from(document.getElementsByClassName('smallBtn')).forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const i = Number(b.getAttribute('data-i'));
+          const entries = loadEntries();
+          const item = entries[i];
+          downloadJSON(item, sanitizeFilename((item.title||'entry')+'.json'));
+        });
+      });
+      Array.from(document.getElementsByClassName('delBtn')).forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const i = Number(b.getAttribute('data-i'));
+          const entries = loadEntries();
+          entries.splice(i,1);
+          saveEntries(entries);
+          render();
+        });
+      });
+    }
+
+    function escapeHtml(s){
+      if(!s) return '';
+      return (s+'').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);
+    }
+
+    function sanitizeFilename(name){
+      return name.replace(/[\\/:*?\"<>|]/g,'_');
+    }
+
+    function downloadJSON(obj, filename){
+      const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    }
+
+    saveBtn.addEventListener('click', ()=>{
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+      const tag = tagInput.value.trim();
+      if(!title && !content){ alert('Title ya content daalo.'); return }
+      const obj = {title, content, tag, ts: Date.now()};
+
+      if(saveMode.value === 'download'){
+        // just download the entry as a file
+        downloadJSON(obj, sanitizeFilename((title||'entry')+'_'+new Date().toISOString()+'.json'));
+        // also save to localStorage optionally
+        const entries = loadEntries(); entries.push(obj); saveEntries(entries); render();
+        return;
+      }
+
+      // default: save to localStorage
+      const entries = loadEntries(); entries.push(obj); saveEntries(entries); render();
+      // clear inputs
+      titleInput.value=''; contentInput.value=''; tagInput.value='';
+    });
+
+    exportAllBtn.addEventListener('click', ()=>{
+      const entries = loadEntries();
+      if(entries.length===0){ alert('Koi entry nahi hai.'); return }
+      downloadJSON({exportedAt: new Date().toISOString(), entries}, 'phone-data-export_'+new Date().toISOString()+'.json');
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      if(confirm('Saare saved entries hata doon?')){ localStorage.removeItem(LS_KEY); render(); }
+    });
+
+    // Auto-save on input (to prevent data loss while typing) — saves draft separately
+    const DRAFT_KEY = 'phone_data_saver_draft_v1';
+    [titleInput, contentInput, tagInput].forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        const draft = {title: titleInput.value, content: contentInput.value, tag: tagInput.value, ts: Date.now()};
+        try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }catch(e){}
+      });
+    });
+
+    // Load draft on start
+    (function loadDraft(){
+      try{
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if(raw){ const d = JSON.parse(raw); titleInput.value = d.title||''; contentInput.value = d.content||''; tagInput.value = d.tag||''; }
+      }catch(e){}
+    })();
+
+    // Share latest using Web Share API (if supported)
+    shareBtn.addEventListener('click', async ()=>{
+      const entries = loadEntries();
+      if(entries.length===0){ alert('Koi entry nahi hai.'); return }
+      const last = entries[entries.length-1];
+      try{
+        const file = new File([JSON.stringify(last,null,2)], sanitizeFilename((last.title||'entry')+'.json'), {type:'application/json'});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+          await navigator.share({files:[file], title: last.title, text: last.content.slice(0,200)});
+        }else{
+          // fallback to download
+          downloadJSON(last, sanitizeFilename((last.title||'entry')+'.json'));
+        }
+      }catch(e){
+        console.error(e);
+        downloadJSON(last, sanitizeFilename((last.title||'entry')+'.json'));
+      }
+    });
+
+    // Initialize
+    render();
+  </script></body>
+</html>
